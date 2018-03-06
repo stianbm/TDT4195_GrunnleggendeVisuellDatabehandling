@@ -1,0 +1,312 @@
+// Local headers
+#include "program.hpp"
+#include "gloom/gloom.hpp"
+#include "gloom/shader.hpp"
+#include <glm/mat4x4.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/transform.hpp>
+#include <glm/vec3.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+//Global Variables:
+//Matrix
+glm::mat4 Matrix = glm::mat4(1.0);
+
+//Perspective matrix
+float FOVRadiansY = 1.5;
+float aspectRatio = 1.0;
+float nearPlane = 0.1;
+float farPlane = 100.0;
+glm::mat4 MatrixToShader;
+
+//Variabble to hold x,y,z coordinates, pitch, yaw and turn around up with the clock.
+float Position[] = { 0,0,0,0,0,0 };
+
+unsigned int SetUpVAO(float* Coordinates, int nCoordinates, int* Indices, int nIndices, float* Colour, unsigned int ColourLength) {
+	//VAO
+	unsigned int Array = 0;
+	glGenVertexArrays(1, &Array);
+	glBindVertexArray(Array);
+	//VBO
+	unsigned int Buffer = 0;
+	glGenBuffers(1, &Buffer);
+	glBindBuffer(GL_ARRAY_BUFFER, Buffer);
+	glBufferData(GL_ARRAY_BUFFER, (nCoordinates * sizeof(float)), Coordinates, GL_STATIC_DRAW);
+	//Vertex Attribute Pointer for coordinates
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	//Enabling the vertex attributes
+	glEnableVertexAttribArray(0);
+	//Index buffer
+	unsigned int IndexBuffer = 0;
+	glGenBuffers(1, &IndexBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IndexBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, (nIndices * sizeof(int)), Indices, GL_STATIC_DRAW);
+	//Colour
+	unsigned int ColourID;
+	glGenBuffers(1, &ColourID);
+	glBindBuffer(GL_ARRAY_BUFFER, ColourID);
+	glBufferData(GL_ARRAY_BUFFER, ColourLength, Colour, GL_STATIC_DRAW);
+	//Vertex Attribute Pointer for colours
+	glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(1);
+	//Return value
+	return Array;
+}
+
+void runProgram(GLFWwindow* window)
+{
+	// Enable depth (Z) buffer (accept "closest" fragment)
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
+
+	// Configure miscellaneous OpenGL settings
+	glEnable(GL_CULL_FACE);
+
+	// Set default colour after clearing the colour buffer
+	glClearColor(0.3f, 0.5f, 0.8f, 1.0f);
+
+	// Set up your scene here (create Vertex Array Objects, etc.)
+	//Enable transparency
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	//Create a triangle
+	float Triangle[] = { -0.9, -0.9, -0.6, 0.9, -0.9, -0.6, 0.0, 0.0, -0.6 };
+	int TriangleLength = 9;
+	int Indices[] = { 0, 1, 2 };
+	int nIndices = 3;
+
+
+	//Create 4 more triangles
+	float Triangle2[] = { -0.9, -0.4, -0.3, 0.6, -0.4, -0.3, -0.9, 0.2, -0.3 };
+	float Triangle3[] = { 0.9, 0.0, -0.5, -0.6, 0.0, -0.5, 0.9, -0.6, -0.5 };
+
+	float Triangle4[] = { -0.9, 0.9, 0.0, -0.9, 0.6, 0.0, -0.6, 0.9, 0.0 };
+	float Triangle5[] = { 0.9, -0.9, 0.0, 0.9, -0.6, 0.0, 0.6, -0.9, 0.0 };
+
+
+	//Create some colours for vertices
+	unsigned int ColourLength = 3 * 4 * sizeof(unsigned int);
+	float RGB[] = {
+		1, 0, 0, 0,
+		0, 1, 0, 1,
+		0, 0, 1, 1
+	};
+	float RBG[] = {
+		1, 0, 0, 1,
+		0, 0, 1, 1,
+		0, 1, 0, 1 };
+	float Red[] = {
+		1, 0, 0, 0.4,
+		1, 0, 0, 0.4,
+		1, 0, 0, 0.4,
+	};
+	float Blue[] = {
+		0, 0, 1, 0.4,
+		0, 0, 1, 0.4,
+		0, 0, 1, 0.4,
+	};
+	float Green[] = {
+		0, 1, 0, 0.4,
+		0, 1, 0, 0.4,
+		0, 1, 0, 0.4,
+	};
+	float Redish[] = {
+		0.4, 0, 0, 0.4,
+		0.4, 0, 0, 0.4,
+		0.4, 0, 0, 0.4,
+	};
+
+	//Task 2.a
+	/*
+	float TriangleOutside[] = { 0.6, -0.8, -1.2, 0.0, 0.4, 0.0, -0.8, -0.2, 1.2 };
+	unsigned int ArrayOutside = SetUpVAO(TriangleOutside, TriangleLength, Indices, nIndices);
+	*/
+
+	//Create vertex array object and vertex buffer object
+	unsigned int Array = SetUpVAO(Triangle, TriangleLength, Indices, nIndices, Red, ColourLength);
+	unsigned int Array2 = SetUpVAO(Triangle2, TriangleLength, Indices, nIndices, Green, ColourLength);
+	unsigned int Array3 = SetUpVAO(Triangle3, TriangleLength, Indices, nIndices, Blue, ColourLength);
+
+	unsigned int Array4 = SetUpVAO(Triangle4, TriangleLength, Indices, nIndices, RGB, ColourLength);
+	unsigned int Array5 = SetUpVAO(Triangle5, TriangleLength, Indices, nIndices, RGB, ColourLength);
+
+
+	//Load shaders
+	Gloom::Shader Shader;
+	Shader.makeBasicShader("C:/Users/stianbm/gloom/gloom/shaders/simple.vert", "C:/Users/stianbm/gloom/gloom/shaders/simple.frag");
+
+	//Activate shader
+	Shader.activate();
+
+	//Iteratror for variable
+	int i = 0;
+
+	// Rendering Loop
+	while (!glfwWindowShouldClose(window))
+	{
+		// Clear colour and depth buffers
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		// Draw your scene here
+
+		//Uniform variable
+		/*
+		glUniform1f(2, (float)sin(i / 600.0));
+		i++;
+		*/
+		//Transformations
+		glm::mat4 Translation = {
+			1,0,0,0,
+			0,1,0,0,
+			0,0,1,0,
+			Position[0],Position[1],Position[2],1
+		};
+
+		glm::mat4 RotationX = glm::mat4(1);
+		RotationX[1][1] = cos(Position[3]);
+		RotationX[2][2] = cos(Position[3]);
+		RotationX[2][1] = sin(Position[3]);
+		RotationX[1][2] = -sin(Position[3]);
+
+		glm::mat4 RotationZ = glm::mat4(1);
+		RotationZ[0][0] = cos(Position[4]);
+		RotationZ[1][1] = cos(Position[4]);
+		RotationZ[1][0] = -sin(Position[4]);
+		RotationZ[0][1] = sin(Position[4]);
+
+		glm::mat4 RotationY = glm::mat4(1);
+		RotationY[0][0] = cos(Position[5]);
+		RotationY[2][2] = cos(Position[5]);
+		RotationY[0][2] = -sin(Position[5]);
+		RotationY[2][0] = sin(Position[5]);
+
+		//Perspective
+		glm::mat4 ProjectionMatrix = glm::perspective(FOVRadiansY, aspectRatio, nearPlane, farPlane);
+
+		MatrixToShader = ProjectionMatrix * Translation * RotationY * RotationZ * RotationX * Matrix;
+
+		glUniformMatrix4fv(3, 1, GL_FALSE, glm::value_ptr(MatrixToShader));
+
+		glBindVertexArray(Array);
+		glDrawElements(GL_TRIANGLES, nIndices, GL_UNSIGNED_INT, 0);
+
+
+		glBindVertexArray(Array2);
+		glDrawElements(GL_TRIANGLES, nIndices, GL_UNSIGNED_INT, 0);
+
+		glBindVertexArray(Array3);
+		glDrawElements(GL_TRIANGLES, nIndices, GL_UNSIGNED_INT, 0);
+
+
+
+		glBindVertexArray(Array4);
+		glDrawElements(GL_TRIANGLES, nIndices, GL_UNSIGNED_INT, 0);
+		glBindVertexArray(Array5);
+		glDrawElements(GL_TRIANGLES, nIndices, GL_UNSIGNED_INT, 0);
+
+
+		/*
+		glBindVertexArray(ArrayOutside);
+		glDrawElements(GL_TRIANGLES, nIndices, GL_UNSIGNED_INT, 0);
+		*/
+
+		// Handle other events
+		glfwPollEvents();
+		handleKeyboardInput(window);
+
+		// Flip buffers
+		glfwSwapBuffers(window);
+	}
+	//Deactivate shader
+	Shader.deactivate();
+}
+
+//Motion takes in change relative to the camera and updates the rotation values and calculates the new xyz coordinates
+//Position(x,y,z,pitch, yaw, rotate)
+//		   0,1,2,  3  ,  4 ,   5  
+//         Left, Up, forward 
+// 
+void Motion(float Left, float Down, float Forward, float TiltUpwards, float RotateYawWithClock, float RotateWithClock) {
+	Position[0] += ((Left * (float)cos(Position[3]) * (float)cos(Position[5])) +
+		Down * (float)sin(Position[5]) * (float)cos(Position[4]) +
+		Forward * (float)sin(Position[3]) * (-(float)sin(Position[5])));
+	Position[1] += (Left * ((float)cos(Position[4])) * (float)sin(Position[4]) +
+		Down * (float)cos(Position[5]) * (float)cos(Position[4]) +
+		Forward * (float)sin(Position[3]) * (float)sin(Position[5]));
+	Position[2] += (Left * ((float)sin(Position[3])) * (float)sin(Position[5]) +
+		Down * (float)cos(Position[5]) * (-(float)sin(Position[3])) +
+		Forward * (float)cos(Position[3]) * (float)cos(Position[5]));
+	Position[3] += TiltUpwards;
+	Position[4] += RotateYawWithClock;
+	Position[5] += RotateWithClock;
+}
+
+void handleKeyboardInput(GLFWwindow* window)
+{
+	// Use escape key for terminating the GLFW window
+	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+	{
+		glfwSetWindowShouldClose(window, GL_TRUE);
+	}
+	//Forward
+	else if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+	{
+		Motion(0, 0, 0.1, 0, 0, 0);
+	}
+	//Backward
+	else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+	{
+		Motion(0, 0, -0.1, 0, 0, 0);
+	}
+	//Up
+	else if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+	{
+		Motion(0, -0.1, 0, 0, 0, 0);
+	}
+	//Down
+	else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+	{
+		Motion(0, 0.1, 0, 0, 0, 0);
+	}
+	//RightStrafe
+	else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+	{
+		Motion(-0.1, 0, 0, 0, 0, 0);
+	}
+	//LeftStrafe
+	else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+	{
+		Motion(0.1, 0, 0, 0, 0, 0);
+	}
+	//Pitch down
+	else if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+	{
+		Motion(0, 0, 0, -0.1, 0, 0);
+	}
+	//Pitch up
+	else if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+	{
+		Motion(0, 0, 0, 0.1, 0, 0);
+	}
+	//Yaw Right
+	else if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+	{
+		Motion(0, 0, 0, 0, 0.1, 0);
+	}
+	//Yaw Left
+	else if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+	{
+		Motion(0, 0, 0, 0, -0.1, 0);
+	}
+	//Turn right
+	else if (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS)
+	{
+		Motion(0, 0, 0, 0, 0, 0.1);
+	}
+	//Turn left
+	else if (glfwGetKey(window, GLFW_KEY_K) == GLFW_PRESS)
+	{
+		Motion(0, 0, 0, 0, 0, -0.1);
+	};
+}
